@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 寒假日程视觉管理</title>
+
+    <!-- 引入 Tailwind CSS 用于样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 定义 Import Map，告诉浏览器从哪里加载 React 和图标库 -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+        }
+    }
+    </script>
+
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 针对浏览器的滚动条样式优化 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-[#f1f5f9]">
+    <div id="root"></div>
+
+    <!-- 主程序逻辑 -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import {
+            Calendar,
+            Plus,
+            Trash2,
+            Clock,
+            GripVertical,
+            Edit2,
+            CheckCircle2,
+            X,
+            Sparkles,
+            Loader2,
+            Flag,
+            Trophy,
+            Coffee,
+            Repeat,
+            Layout,
+            Eye,
+            BarChart3
+        } from 'lucide-react';
+
+        /**
+         * 2026 Winter Break Planner - Lunar Fixed & Visual Pro
+         * Copy of provided code
+         */
+
+        const App = () => {
+            // --- Constants ---
+            const START_DATE_STR = '2026-01-19';
+            const END_DATE_STR = '2026-03-01';
+            const apiKey = "";
+
+            // 根据 HTML 文件名生成唯一的存储键
+            // 这样不同的 HTML 文件会对应不同的数据库，适合多孩子家庭使用
+            const getStorageKey = () => {
+                // 获取当前 HTML 文件的完整路径
+                const fullPath = window.location.pathname;
+                // 提取文件名（不含路径）
+                const fileName = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+                // 移除 .html 扩展名
+                const baseName = fileName.replace('.html', '');
+                // 生成存储键：winter_tasks_2026_ + 文件名
+                return `winter_tasks_2026_${baseName}`;
+            };
+
+            // 获取当前使用的数据库名称（用于显示）
+            const getDisplayName = () => {
+                const fullPath = window.location.pathname;
+                const fileName = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+                const baseName = fileName.replace('.html', '');
+                // 如果文件名包含连字符或下划线，提取后面的部分作为名称
+                const match = baseName.match(/[-_](.+)$/);
+                return match ? match[1] : '默认';
+            };
+
+            const STORAGE_KEY = getStorageKey();
+            const DISPLAY_NAME = getDisplayName();
+
+            const COLOR_CONFIG = {
+                blue: { label: '固定课', bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-700', dot: 'bg-blue-500' },
+                green: { label: '自由练习', bg: 'bg-green-50', border: 'border-green-500', text: 'text-green-700', dot: 'bg-green-500' },
+                orange: { label: '体育运动', bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-700', dot: 'bg-orange-500' },
+                purple: { label: '兴趣艺术', bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-700', dot: 'bg-purple-500' },
+                red: { label: '紧急重要', bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700', dot: 'bg-red-500' }
+            };
+
+            // 完整农历数据映射 (2026-01-19 到 2026-03-01)
+            const LUNAR_MAP = {
+                '2026-01-19': { d: '腊月初一', m: null },
+                '2026-01-20': { d: '腊月初二', m: null },
+                '2026-01-21': { d: '腊月初三', m: null },
+                '2026-01-22': { d: '腊月初四', m: null },
+                '2026-01-23': { d: '腊月初五', m: null },
+                '2026-01-24': { d: '腊月初六', m: null },
+                '2026-01-25': { d: '腊月初七', m: null },
+                '2026-01-26': { d: '腊月初八', m: '腊八' },
+                '2026-01-27': { d: '腊月初九', m: null },
+                '2026-01-28': { d: '腊月初十', m: null },
+                '2026-01-29': { d: '腊月十一', m: null },
+                '2026-01-30': { d: '腊月十二', m: null },
+                '2026-01-31': { d: '腊月十三', m: null },
+                '2026-02-01': { d: '腊月十四', m: null },
+                '2026-02-02': { d: '腊月十五', m: null },
+                '2026-02-03': { d: '腊月十六', m: null },
+                '2026-02-04': { d: '腊月十七', m: '立春' },
+                '2026-02-05': { d: '腊月十八', m: null },
+                '2026-02-06': { d: '腊月十九', m: null },
+                '2026-02-07': { d: '腊月二十', m: null },
+                '2026-02-08': { d: '腊月廿一', m: null },
+                '2026-02-09': { d: '腊月廿二', m: null },
+                '2026-02-10': { d: '腊月廿三', m: '小年', icon: <Coffee size={12} /> },
+                '2026-02-11': { d: '腊月廿四', m: null },
+                '2026-02-12': { d: '腊月廿五', m: null },
+                '2026-02-13': { d: '腊月廿六', m: null },
+                '2026-02-14': { d: '腊月廿七', m: '情人节' },
+                '2026-02-15': { d: '腊月廿八', m: null },
+                '2026-02-16': { d: '腊月三十', m: '除夕', icon: <Flag size={12} /> },
+                '2026-02-17': { d: '正月初一', m: '春节', icon: <Trophy size={12} /> },
+                '2026-02-18': { d: '正月初二', m: null },
+                '2026-02-19': { d: '正月初三', m: '雨水' },
+                '2026-02-20': { d: '正月初四', m: null },
+                '2026-02-21': { d: '正月初五', m: null },
+                '2026-02-22': { d: '正月初六', m: null },
+                '2026-02-23': { d: '正月初七', m: null },
+                '2026-02-24': { d: '正月初八', m: null },
+                '2026-02-25': { d: '正月初九', m: null },
+                '2026-02-26': { d: '正月初十', m: null },
+                '2026-02-27': { d: '正月十一', m: null },
+                '2026-02-28': { d: '正月十二', m: null },
+                '2026-03-01': { d: '正月十三', m: '开学', icon: <Flag size={12} /> }
+            };
+
+            // --- Date Helpers ---
+            const formatDate = (date) => {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            };
+
+            const parseDate = (str) => {
+                const [y, m, d] = str.split('-').map(Number);
+                return new Date(y, m - 1, d);
+            };
+
+            // --- State ---
+            const [tasks, setTasks] = useState(() => {
+                // 尝试从 localStorage 读取数据，实现刷新不丢失
+                // 使用基于文件名的动态存储键
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) return JSON.parse(saved);
+                return [
+                    { id: '1', title: '英语口语课', color: 'blue', date: '2026-01-19', startTime: '10:00', endTime: '12:30', completed: false, order: 0 },
+                    { id: '2', title: '寒假作业', color: 'green', date: '2026-01-19', startTime: '14:00', endTime: '15:30', completed: false, order: 1 },
+                    { id: '3', title: '羽毛球练习', color: 'orange', date: '2026-01-19', startTime: '16:00', endTime: '17:00', completed: false, order: 2 },
+                ];
+            });
+
+            // 保存到本地存储
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+            }, [tasks]);
+
+            const [selectedDate, setSelectedDate] = useState('2026-01-19');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isBatchMode, setIsBatchMode] = useState(false);
+            const [editingTask, setEditingTask] = useState(null);
+            const [draggedTaskId, setDraggedTaskId] = useState(null);
+            const [showBatchPreview, setShowBatchPreview] = useState(false);
+
+            const [formData, setFormData] = useState({
+                title: '',
+                color: 'blue',
+                startTime: '10:00',
+                endTime: '12:00',
+                startDate: '2026-01-19',
+                endDate: '2026-01-30',
+                selectedDays: [1, 2, 3, 4, 5]
+            });
+
+            // --- Derived State ---
+            const dates = useMemo(() => {
+                const d = [];
+                let current = parseDate(START_DATE_STR);
+                const end = parseDate(END_DATE_STR);
+                while (current <= end) {
+                    d.push(formatDate(current));
+                    current.setDate(current.getDate() + 1);
+                }
+                return d;
+            }, []);
+
+            const currentDayTasks = useMemo(() => {
+                return tasks
+                    .filter(t => t.date === selectedDate)
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
+            }, [tasks, selectedDate]);
+
+            // Batch tasks overview - group tasks by title to show batch scheduling patterns
+            const batchTasksOverview = useMemo(() => {
+                const grouped = {};
+                tasks.forEach(task => {
+                    if (!grouped[task.title]) {
+                        grouped[task.title] = {
+                            title: task.title,
+                            color: task.color,
+                            startTime: task.startTime,
+                            endTime: task.endTime,
+                            dates: [],
+                            count: 0
+                        };
+                    }
+                    grouped[task.title].dates.push(task.date);
+                    grouped[task.title].count++;
+                });
+
+                // Convert to array and calculate date ranges
+                return Object.values(grouped)
+                    .filter(item => item.count > 1) // Only show tasks that appear multiple times
+                    .map(item => {
+                        const sortedDates = item.dates.sort();
+                        return {
+                            ...item,
+                            startDate: sortedDates[0],
+                            endDate: sortedDates[sortedDates.length - 1],
+                            dates: sortedDates
+                        };
+                    })
+                    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+            }, [tasks]);
+
+            // --- Handlers ---
+            const handleSave = () => {
+                if (!formData.title) return;
+
+                if (isBatchMode) {
+                    const newBatchTasks = [];
+                    let current = parseDate(formData.startDate);
+                    const end = parseDate(formData.endDate);
+                    while (current <= end) {
+                        if (formData.selectedDays.includes(current.getDay())) {
+                            newBatchTasks.push({
+                                id: Math.random().toString(36).substr(2, 9),
+                                title: formData.title,
+                                color: formData.color,
+                                date: formatDate(current),
+                                startTime: formData.startTime,
+                                endTime: formData.endTime,
+                                completed: false,
+                                order: Date.now() + Math.random()
+                            });
+                        }
+                        current.setDate(current.getDate() + 1);
+                    }
+                    setTasks(prev => [...prev, ...newBatchTasks]);
+                } else {
+                    if (editingTask) {
+                        setTasks(prev => prev.map(t => t.id === editingTask.id ? { ...t, ...formData } : t));
+                    } else {
+                        setTasks(prev => [...prev, {
+                            ...formData,
+                            id: Math.random().toString(36).substr(2, 9),
+                            date: selectedDate,
+                            completed: false,
+                            order: Date.now()
+                        }]);
+                    }
+                }
+                setIsModalOpen(false);
+                setEditingTask(null);
+            };
+
+            // --- Sorting Interaction ---
+            const handleTaskDragStart = (id) => setDraggedTaskId(id);
+
+            const handleTaskDrop = (targetId) => {
+                if (draggedTaskId === targetId) return;
+                const dayTasks = [...currentDayTasks];
+                const draggedIdx = dayTasks.findIndex(t => t.id === draggedTaskId);
+                const targetIdx = dayTasks.findIndex(t => t.id === targetId);
+
+                if (draggedIdx === -1 || targetIdx === -1) return;
+
+                const [removed] = dayTasks.splice(draggedIdx, 1);
+                dayTasks.splice(targetIdx, 0, removed);
+
+                // Update global tasks with new orders for this day
+                const updatedTasks = tasks.map(t => {
+                    if (t.date === selectedDate) {
+                        const newIdx = dayTasks.findIndex(dt => dt.id === t.id);
+                        if (newIdx !== -1) {
+                            return { ...t, order: newIdx };
+                        }
+                    }
+                    return t;
+                });
+                setTasks(updatedTasks);
+                setDraggedTaskId(null);
+            };
+
+            return (
+                <div className="min-h-screen bg-[#f1f5f9] text-slate-900 p-4 md:p-8 font-sans">
+                    <div className="max-w-7xl mx-auto">
+
+                        {/* Header */}
+                        <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                            <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <h1 className="text-4xl font-black text-slate-800 tracking-tighter">2026 寒假日程视觉管理</h1>
+                                    <div className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-2xl shadow-lg">
+                                        <span className="text-xs font-black uppercase tracking-widest">📚 {DISPLAY_NAME}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-4 mt-2">
+                                    {Object.entries(COLOR_CONFIG).map(([key, cfg]) => (
+                                        <div key={key} className="flex items-center gap-1.5">
+                                            <div className={`w-3 h-3 rounded-full ${cfg.dot}`} />
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{cfg.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => {
+                                    if (window.confirm('确定要清除所有数据吗？此操作不可恢复！')) {
+                                        setTasks([]);
+                                        localStorage.removeItem(STORAGE_KEY);
+                                        setShowBatchPreview(false);
+                                    }
+                                }} className="flex items-center gap-2 bg-red-50 text-red-600 border-2 border-red-200 px-4 py-3 rounded-2xl font-bold hover:bg-red-100 shadow-lg active:scale-95 transition-all">
+                                    <Trash2 size={18} /> 清除数据
+                                </button>
+                                <button onClick={() => setShowBatchPreview(!showBatchPreview)} className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold shadow-lg active:scale-95 transition-all ${showBatchPreview ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-white text-purple-600 border-2 border-purple-600 hover:bg-purple-50'}`}>
+                                    <BarChart3 size={18} /> 批量预览
+                                </button>
+                                <button onClick={() => { setIsBatchMode(true); setIsModalOpen(true); }} className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 shadow-lg active:scale-95 transition-all">
+                                    <Repeat size={18} /> 批量排课
+                                </button>
+                                <button onClick={() => { setEditingTask(null); setIsBatchMode(false); setIsModalOpen(true); }} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold hover:bg-slate-800 shadow-lg active:scale-95 transition-all">
+                                    <Plus size={18} /> 新增计划
+                                </button>
+                            </div>
+                        </header>
+
+                        {/* Batch Preview Panel */}
+                        {showBatchPreview && (
+                            <div className="mb-8 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-[2rem] shadow-xl shadow-purple-200/60 border-2 border-purple-200 overflow-hidden animate-in slide-in-from-top duration-300">
+                                <div className="p-6 bg-white/60 backdrop-blur-sm border-b border-purple-200 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-purple-600 rounded-2xl flex items-center justify-center">
+                                            <BarChart3 size={20} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <h2 className="font-black text-slate-800 text-xl tracking-tight">批量排课总览</h2>
+                                            <p className="text-xs text-slate-500 font-bold">查看所有重复性课程的时间周期和内容</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setShowBatchPreview(false)} className="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-600 transition-all">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <div className="p-6">
+                                    {batchTasksOverview.length === 0 ? (
+                                        <div className="py-16 text-center border-4 border-dashed border-purple-200 rounded-[2rem] bg-white/40">
+                                            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center text-purple-300 mx-auto mb-4">
+                                                <Repeat size={32} />
+                                            </div>
+                                            <p className="text-slate-500 font-black uppercase tracking-widest text-sm">暂无批量排课记录</p>
+                                            <p className="text-slate-400 text-xs mt-2">使用"批量排课"功能创建重复性课程</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {batchTasksOverview.map((item, idx) => {
+                                                const cfg = COLOR_CONFIG[item.color];
+                                                const startDateObj = parseDate(item.startDate);
+                                                const endDateObj = parseDate(item.endDate);
+                                                const duration = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24)) + 1;
+
+                                                return (
+                                                    <div key={idx} className={`relative p-5 rounded-2xl border-l-[6px] ${cfg.bg} ${cfg.border} border shadow-md hover:shadow-xl transition-all group`}>
+                                                        {/* Delete button for this batch course */}
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (window.confirm(`确定要删除所有"${item.title}"课程吗？共 ${item.count} 次课程将被删除。`)) {
+                                                                    setTasks(prev => prev.filter(t => t.title !== item.title));
+                                                                }
+                                                            }}
+                                                            className="absolute top-3 right-3 w-8 h-8 bg-white/80 hover:bg-red-50 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 shadow-sm z-10"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="flex-grow pr-8">
+                                                                <h3 className={`text-lg font-black ${cfg.text} mb-1`}>{item.title}</h3>
+                                                                <div className={`flex items-center gap-1.5 text-xs font-bold ${cfg.text} opacity-70`}>
+                                                                    <Clock size={12} />
+                                                                    {item.startTime} - {item.endTime}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`w-8 h-8 rounded-full ${cfg.dot} flex items-center justify-center text-white text-xs font-black`}>
+                                                                {item.count}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2 mt-4 pt-4 border-t border-slate-200/50">
+                                                            <div className="flex items-center justify-between text-xs">
+                                                                <span className="text-slate-500 font-bold">开始日期</span>
+                                                                <span className="font-black text-slate-700">
+                                                                    {item.startDate.split('-')[1]}月{item.startDate.split('-')[2]}日
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-xs">
+                                                                <span className="text-slate-500 font-bold">结束日期</span>
+                                                                <span className="font-black text-slate-700">
+                                                                    {item.endDate.split('-')[1]}月{item.endDate.split('-')[2]}日
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-xs">
+                                                                <span className="text-slate-500 font-bold">时间跨度</span>
+                                                                <span className="font-black text-slate-700">{duration} 天</span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-xs">
+                                                                <span className="text-slate-500 font-bold">总课时</span>
+                                                                <span className={`font-black ${cfg.text}`}>{item.count} 次</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Mini calendar visualization */}
+                                                        <div className="mt-4 pt-4 border-t border-slate-200/50">
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">课程分布</div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {item.dates.slice(0, 12).map((date, i) => (
+                                                                    <div key={i} className={`w-6 h-6 rounded-lg ${cfg.dot} opacity-60 flex items-center justify-center text-white text-[9px] font-bold`}>
+                                                                        {parseDate(date).getDate()}
+                                                                    </div>
+                                                                ))}
+                                                                {item.dates.length > 12 && (
+                                                                    <div className="w-6 h-6 rounded-lg bg-slate-300 flex items-center justify-center text-white text-[8px] font-bold">
+                                                                        +{item.dates.length - 12}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+                            {/* Calendar Section */}
+                            <div className="lg:col-span-5 bg-white rounded-[2rem] shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+                                <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+                                    <h2 className="font-black text-slate-700 flex items-center gap-2 uppercase tracking-tight">
+                                        <Calendar size={20} className="text-indigo-600" />
+                                        寒假全景
+                                    </h2>
+                                </div>
+
+                                <div className="p-4 md:p-6">
+                                    <div className="grid grid-cols-7 mb-4 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                                        {['一', '二', '三', '四', '五', '六', '日'].map(day => <div key={day}>{day}</div>)}
+                                    </div>
+
+                                    <div className="grid grid-cols-7 gap-1.5">
+                                        {dates.map((dateString) => {
+                                            const isSelected = selectedDate === dateString;
+                                            const dateObj = parseDate(dateString);
+                                            const lunar = LUNAR_MAP[dateString] || { d: '农历' };
+                                            const dayTasks = tasks.filter(t => t.date === dateString);
+
+                                            return (
+                                                <div
+                                                    key={dateString}
+                                                    onClick={() => setSelectedDate(dateString)}
+                                                    className={`
+                                    relative min-h-[75px] flex flex-col items-center justify-start rounded-2xl cursor-pointer transition-all border-2 py-2 px-1
+                                    ${isSelected ? 'bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-200 -translate-y-1' : 'bg-white border-transparent hover:bg-slate-50'}
+                                `}
+                                                >
+                                                    <span className={`text-xl font-black leading-none mb-1 ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                                                        {dateObj.getDate()}
+                                                    </span>
+                                                    <div className={`text-[9px] font-bold leading-none mb-2 truncate max-w-full text-center ${isSelected ? 'text-indigo-200' : (lunar.m ? 'text-orange-500' : 'text-slate-400')}`}>
+                                                        {lunar.m || lunar.d.replace('腊月', '').replace('正月', '')}
+                                                    </div>
+
+                                                    {/* Visual Color Stripes */}
+                                                    <div className="w-full space-y-0.5 mt-auto pb-1">
+                                                        {dayTasks.slice(0, 4).map((t, idx) => (
+                                                            <div
+                                                                key={t.id}
+                                                                className={`h-1 w-full rounded-full ${COLOR_CONFIG[t.color || 'blue'].dot} opacity-80`}
+                                                            />
+                                                        ))}
+                                                        {dayTasks.length > 4 && (
+                                                            <div className={`text-[8px] font-black text-center ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+                                                                +{dayTasks.length - 4}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Task List Section */}
+                            <div className="lg:col-span-7 space-y-6">
+                                <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/60 border border-slate-100 p-8 min-h-[600px]">
+                                    <div className="flex items-center gap-3 mb-8">
+                                        <div className="w-1.5 h-10 bg-indigo-600 rounded-full" />
+                                        <div>
+                                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                                                {LUNAR_MAP[selectedDate]?.d} {LUNAR_MAP[selectedDate]?.m && `· ${LUNAR_MAP[selectedDate]?.m}`}
+                                            </div>
+                                            <h3 className="text-4xl font-black text-slate-800 tracking-tighter">
+                                                {selectedDate.split('-')[1]}月{selectedDate.split('-')[2]}日
+                                            </h3>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {currentDayTasks.length === 0 ? (
+                                            <div className="py-32 text-center border-4 border-dashed border-slate-50 rounded-[2rem] flex flex-col items-center gap-4">
+                                                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
+                                                    <Layout size={40} />
+                                                </div>
+                                                <p className="text-slate-400 font-black uppercase tracking-widest text-sm text-center px-4">今日暂无安排<br />点击上方按钮添加计划</p>
+                                            </div>
+                                        ) : (
+                                            currentDayTasks.map((task) => (
+                                                <div
+                                                    key={task.id}
+                                                    draggable
+                                                    onDragStart={() => handleTaskDragStart(task.id)}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={() => handleTaskDrop(task.id)}
+                                                    onClick={() => { setEditingTask(task); setFormData({ ...task }); setIsBatchMode(false); setIsModalOpen(true); }}
+                                                    className={`
+                                    group relative flex items-center gap-4 p-5 rounded-2xl border-l-[8px] transition-all cursor-pointer border shadow-sm hover:shadow-lg hover:-translate-y-0.5
+                                    ${COLOR_CONFIG[task.color].bg} ${COLOR_CONFIG[task.color].border}
+                                    ${task.completed ? 'opacity-40 grayscale-[0.5]' : ''}
+                                `}
+                                                >
+                                                    <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-slate-400 transition-colors">
+                                                        <GripVertical size={20} />
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setTasks(tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t)); }}
+                                                        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${task.completed ? 'bg-indigo-600 border-indigo-600 shadow-md' : 'bg-white border-slate-300 hover:border-indigo-400'}`}
+                                                    >
+                                                        {task.completed && <CheckCircle2 size={16} className="text-white" />}
+                                                    </button>
+
+                                                    <div className="flex-grow">
+                                                        <h4 className={`text-xl font-black ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                                            {task.title}
+                                                        </h4>
+                                                        <div className={`flex items-center gap-2 text-xs font-black uppercase tracking-tight mt-1 opacity-60 ${COLOR_CONFIG[task.color].text}`}>
+                                                            <Clock size={14} /> {task.startTime} — {task.endTime}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={(e) => { e.stopPropagation(); setTasks(tasks.filter(t => t.id !== task.id)); }} className="p-3 bg-white/80 rounded-xl text-red-400 hover:text-red-600 hover:bg-white shadow-sm transition-all">
+                                                            <Trash2 size={20} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Unified Modal */}
+                    {isModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                            <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-xl shadow-2xl relative border border-slate-100 overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+
+                                <div className="flex justify-between items-center mb-8">
+                                    <h3 className="text-3xl font-black text-slate-800 tracking-tighter">
+                                        {isBatchMode ? '批量规划课表' : (editingTask ? '修改日程' : '新增计划')}
+                                    </h3>
+                                    <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-all">
+                                        <X size={24} />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">名称</label>
+                                        <input className="w-full p-5 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-500 focus:bg-white outline-none font-bold text-slate-700 transition-all" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="例如：英语课、跳绳、书法" />
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">分类颜色</label>
+                                        <div className="grid grid-cols-5 gap-3">
+                                            {Object.entries(COLOR_CONFIG).map(([key, cfg]) => (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => setFormData({ ...formData, color: key })}
+                                                    className={`h-12 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all ${formData.color === key ? `${cfg.border} bg-white shadow-lg shadow-slate-100 scale-105` : 'border-slate-50 bg-slate-50 opacity-60'}`}
+                                                >
+                                                    <div className={`w-4 h-4 rounded-full ${cfg.dot}`} />
+                                                    <span className="text-[8px] font-black uppercase">{cfg.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {isBatchMode && (
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">开始日期</label>
+                                                <input type="date" className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">结束日期</label>
+                                                <input type="date" className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {isBatchMode && (
+                                        <div className="space-y-3 p-4 bg-slate-50 rounded-[2rem]">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block text-center mb-1">重复星期</label>
+                                            <div className="flex justify-between px-2">
+                                                {['日', '一', '二', '三', '四', '五', '六'].map((day, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => setFormData(prev => ({
+                                                            ...prev,
+                                                            selectedDays: prev.selectedDays.includes(idx) ? prev.selectedDays.filter(d => d !== idx) : [...prev.selectedDays, idx]
+                                                        }))}
+                                                        className={`w-10 h-10 rounded-full font-black text-sm transition-all ${formData.selectedDays.includes(idx) ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-400'}`}
+                                                    >
+                                                        {day}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">开始时间</label>
+                                            <input type="time" className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none" value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">结束时间</label>
+                                            <input type="time" className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none" value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={() => setIsModalOpen(false)} className="flex-1 py-5 font-black text-slate-400 hover:text-slate-600 transition-all uppercase tracking-widest">取消</button>
+                                    <button onClick={handleSave} className="flex-[2] py-5 bg-slate-900 text-white rounded-3xl font-black shadow-xl shadow-slate-200 hover:bg-indigo-600 active:scale-95 transition-all uppercase tracking-widest">
+                                        {editingTask ? '保存修改' : (isBatchMode ? '生成课表' : '保存计划')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        const root = createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
